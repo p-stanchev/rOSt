@@ -48,11 +48,15 @@ pub fn parse_header(data: &[u8]) -> Result<ElfHeader, ElfError> {
         return Err(UnsupportedFormat);
     }
 
-    // Executable, x86-64, current ELF version.
-    if read_u16(data, 16) != Some(2)
-        || read_u16(data, 18) != Some(62)
-        || read_u32(data, 20) != Some(1)
-    {
+    // Executable or position-independent executable.
+    let image_type = read_u16(data, 16).ok_or(Truncated)?;
+
+    if image_type != 2 && image_type != 3 {
+        return Err(UnsupportedFormat);
+    }
+
+    // x86-64, current ELF version.
+    if read_u16(data, 18) != Some(62) || read_u32(data, 20) != Some(1) {
         return Err(UnsupportedFormat);
     }
 
@@ -63,9 +67,7 @@ pub fn parse_header(data: &[u8]) -> Result<ElfHeader, ElfError> {
 
     let entry = read_u64(data, 24).ok_or(Truncated)?;
     let offset = read_u64(data, 32).ok_or(Truncated)?;
-
     let offset = usize::try_from(offset).map_err(|_| MalformedHeader)?;
-
     let count = read_u16(data, 56).ok_or(Truncated)?;
 
     if entry == 0 || count == 0 || offset < 64 {
@@ -114,6 +116,14 @@ mod tests {
     }
 
     #[test]
+    fn accepts_position_independent_executable() {
+        let mut elf = sample();
+        elf[16..18].copy_from_slice(&3u16.to_le_bytes());
+
+        assert!(parse_header(&elf).is_ok());
+    }
+
+    #[test]
     fn rejects_invalid_magic() {
         let mut elf = sample();
         elf[0] = 0;
@@ -134,5 +144,16 @@ mod tests {
         let elf = sample();
 
         assert_eq!(parse_header(&elf[..119]), Err(ElfError::Truncated));
+    }
+
+    #[test]
+    fn rejects_invalid_program_table_offset() {
+        let mut elf = sample();
+        elf[32..40].copy_from_slice(&u64::MAX.to_le_bytes());
+
+        assert!(matches!(
+            parse_header(&elf),
+            Err(ElfError::Truncated | ElfError::MalformedHeader)
+        ));
     }
 }

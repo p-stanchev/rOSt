@@ -68,6 +68,7 @@ dependencies = [
 name = "rost-boot"
 version = "0.0.1"
 dependencies = [
+ "rost-elf",
  "uefi",
 ]
 

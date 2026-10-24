@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 uefi = { version = "0.41", features = ["panic_handler"] }
+rost-elf = { path = "../elf" }

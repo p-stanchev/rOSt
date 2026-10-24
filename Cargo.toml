@@ -1,5 +1,5 @@
 [workspace]
-members = ["boot", "kernel"]
+members = ["boot", "kernel", "elf"]
 resolver = "3"
 
 [profile.dev]

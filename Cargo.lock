@@ -72,6 +72,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "rost-kernel"
+version = "0.0.1"
+
+[[package]]
 name = "syn"
 version = "3.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"

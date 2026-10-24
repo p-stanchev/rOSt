@@ -4,11 +4,11 @@ An experimental modular monolithic operating system written in Rust, focused on 
 
 ## Status
 
-rOSt is in early development. The project currently consists of a custom UEFI bootloader written in Rust.
+rOSt is in early development. The project currently consists of a custom UEFI bootloader and a minimal freestanding x86-64 kernel, both written in Rust.
 
-The bootloader initializes UEFI services and displays a startup message. It has been tested using QEMU with EDK2 firmware.
+The bootloader initializes UEFI services, displays a startup message, and locates the kernel executable by checking its ELF signature. This functionality has been tested using QEMU with EDK2 firmware.
 
-The kernel itself is not yet implemented.
+The kernel does not execute yet.
 
 ## Building
 
@@ -16,31 +16,37 @@ The kernel itself is not yet implemented.
 
 - Rust and Cargo
 - QEMU with EDK2/OVMF firmware
-- `x86_64-unknown-uefi` Rust target
+- `x86_64-unknown-uefi` and `x86_64-unknown-none` Rust targets
 
-Install the required target:
+Install the required targets:
 
 ```bash
-rustup target add x86_64-unknown-uefi
+rustup target add x86_64-unknown-uefi x86_64-unknown-none
 ```
 
-Build the bootloader:
+Build the bootloader and kernel:
 
 ```bash
 cargo build -p rost-boot --target x86_64-unknown-uefi
+cargo build -p rost-kernel --target x86_64-unknown-none
 ```
 
-The resulting executable is located at:
+The resulting executables are located at:
 
 ```text
 target/x86_64-unknown-uefi/debug/rost-boot.efi
+target/x86_64-unknown-none/debug/rost-kernel
 ```
 
 ## Running
 
 Copy the compiled EFI executable to `EFI/BOOT/BOOTX64.EFI` on a FAT volume.
 
+Copy the compiled kernel to `kernel.elf` at the root of the same volume.
+
 Launch QEMU with x86-64 EDK2 firmware and the volume attached as a virtual disk.
+
+The bootloader checks the kernel's ELF signature but does not load or execute its program segments.
 
 ## License
 

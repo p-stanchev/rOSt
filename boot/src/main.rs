@@ -7,7 +7,8 @@ use uefi::cstr16;
 use uefi::prelude::*;
 use uefi::proto::media::file::{File, FileAttribute, FileMode};
 
-const HEADER_BUFFER_SIZE: usize = 16 * 1024;
+// Limit how much of the kernel we read before allocating memory for it.
+const MAX_HEADER_BYTES: usize = 16 * 1024;
 
 #[entry]
 fn main() -> Status {
@@ -18,7 +19,7 @@ fn main() -> Status {
     uefi::println!("rOSt bootloader v0.0.1");
     uefi::println!("UEFI initialized successfully.");
 
-    match check_kernel() {
+    match validate_kernel_header() {
         Ok(()) => {
             uefi::println!("Kernel ELF64 header validated.");
             Status::SUCCESS
@@ -30,10 +31,12 @@ fn main() -> Status {
     }
 }
 
-fn check_kernel() -> Result<(), Status> {
-    let mut fs = boot::get_image_file_system(boot::image_handle()).map_err(|err| err.status())?;
+// Locate the kernel and verify its ELF64 header.
+fn validate_kernel_header() -> Result<(), Status> {
+    let mut filesystem =
+        boot::get_image_file_system(boot::image_handle()).map_err(|error| error.status())?;
 
-    let mut root = fs.open_volume().map_err(|err| err.status())?;
+    let mut root = filesystem.open_volume().map_err(|error| error.status())?;
 
     let file = root
         .open(
@@ -41,17 +44,19 @@ fn check_kernel() -> Result<(), Status> {
             FileMode::Read,
             FileAttribute::empty(),
         )
-        .map_err(|err| err.status())?;
+        .map_err(|error| error.status())?;
 
     let mut kernel = file.into_regular_file().ok_or(Status::LOAD_ERROR)?;
 
-    let mut buffer = [0u8; HEADER_BUFFER_SIZE];
+    let mut buffer = [0u8; MAX_HEADER_BYTES];
     let mut bytes_read = 0;
 
+    // UEFI may return fewer bytes than requested, so continue until
+    // the buffer is full or the end of the file is reached.
     while bytes_read < buffer.len() {
         let count = kernel
             .read(&mut buffer[bytes_read..])
-            .map_err(|err| err.status())?;
+            .map_err(|error| error.status())?;
 
         if count == 0 {
             break;
@@ -60,8 +65,8 @@ fn check_kernel() -> Result<(), Status> {
         bytes_read += count;
     }
 
-    let header = parse_header(&buffer[..bytes_read]).map_err(|err| {
-        uefi::println!("Invalid kernel ELF: {:?}", err);
+    let header = parse_header(&buffer[..bytes_read]).map_err(|error| {
+        uefi::println!("Invalid kernel ELF: {:?}", error);
         Status::LOAD_ERROR
     })?;
 

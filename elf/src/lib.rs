@@ -5,7 +5,7 @@ mod plan;
 mod segment;
 
 pub use header::{ElfHeader, parse_header};
-pub use plan::{ImageType, LoadSegment, visit_load_segments};
+pub use plan::{ImageType, LoadSegment, MemoryPlan, PAGE_SIZE, plan_memory, visit_load_segments};
 pub use segment::{LoadSummary, validate_load_segments};
 
 #[derive(Debug, PartialEq, Eq)]

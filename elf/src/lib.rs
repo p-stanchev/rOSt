@@ -1,9 +1,11 @@
 #![no_std]
 
 mod header;
+mod plan;
 mod segment;
 
 pub use header::{ElfHeader, parse_header};
+pub use plan::{ImageType, LoadSegment, visit_load_segments};
 pub use segment::{LoadSummary, validate_load_segments};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -72,6 +74,7 @@ pub(crate) mod test_support {
         write_u32(&mut data, header_field::VERSION, ELF_VERSION);
         write_u64(&mut data, header_field::ENTRY, TEST_ENTRY);
         write_u64(&mut data, header_field::PROGRAM_OFFSET, HEADER_SIZE as u64);
+
         write_u16(&mut data, header_field::HEADER_SIZE, HEADER_SIZE as u16);
         write_u16(
             &mut data,

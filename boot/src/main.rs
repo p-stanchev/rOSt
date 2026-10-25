@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use rost_elf::{parse_header, validate_load_segments};
+use rost_elf::{parse_header, validate_load_segments, visit_load_segments};
 use uefi::boot;
 use uefi::cstr16;
 use uefi::prelude::*;
@@ -19,20 +19,20 @@ fn main() -> Status {
     uefi::println!("rOSt bootloader v0.0.1");
     uefi::println!("UEFI initialized successfully.");
 
-    match validate_kernel() {
+    match inspect_kernel() {
         Ok(()) => {
-            uefi::println!("Kernel ELF64 segments validated.");
+            uefi::println!("Kernel ELF64 layout inspected.");
             Status::SUCCESS
         }
         Err(status) => {
-            uefi::println!("Kernel validation failed: {:?}", status);
+            uefi::println!("Kernel inspection failed: {:?}", status);
             status
         }
     }
 }
 
-// Locate the kernel and validate its ELF headers and loadable segments.
-fn validate_kernel() -> Result<(), Status> {
+// Read the kernel's headers and inspect its validated memory layout.
+fn inspect_kernel() -> Result<(), Status> {
     let mut filesystem =
         boot::get_image_file_system(boot::image_handle()).map_err(|error| error.status())?;
 
@@ -48,7 +48,7 @@ fn validate_kernel() -> Result<(), Status> {
 
     let mut kernel = file.into_regular_file().ok_or(Status::LOAD_ERROR)?;
 
-    // Get the actual file size, then return to the beginning.
+    // Determine the complete file size without loading its contents.
     kernel
         .set_position(RegularFile::END_OF_FILE)
         .map_err(|error| error.status())?;
@@ -60,7 +60,7 @@ fn validate_kernel() -> Result<(), Status> {
     let mut buffer = [0u8; MAX_HEADER_BYTES];
     let mut bytes_read = 0;
 
-    // Reads may be partial, so continue until EOF or the buffer is full.
+    // UEFI reads may be partial.
     while bytes_read < buffer.len() {
         let count = kernel
             .read(&mut buffer[bytes_read..])
@@ -80,14 +80,33 @@ fn validate_kernel() -> Result<(), Status> {
         Status::LOAD_ERROR
     })?;
 
-    let segments = validate_load_segments(data, file_size).map_err(|error| {
+    let summary = validate_load_segments(data, file_size).map_err(|error| {
         uefi::println!("Invalid kernel segments: {:?}", error);
         Status::LOAD_ERROR
     })?;
 
     uefi::println!("Entry point: {:#x}", header.entry);
     uefi::println!("Program headers: {}", header.program_header_count);
-    uefi::println!("Loadable segments: {}", segments.loadable_segments);
+    uefi::println!("Loadable segments: {}", summary.loadable_segments);
+
+    let image_type = visit_load_segments(data, file_size, |segment| {
+        uefi::println!(
+            "VA {:#x}, file {:#x}",
+            segment.virtual_address,
+            segment.file_offset
+        );
+        uefi::println!(
+            "  Size: {:#x} / {:#x}",
+            segment.file_size,
+            segment.memory_size
+        );
+    })
+    .map_err(|error| {
+        uefi::println!("Invalid kernel layout: {:?}", error);
+        Status::LOAD_ERROR
+    })?;
+
+    uefi::println!("Image type: {:?}", image_type);
 
     Ok(())
 }

@@ -1,13 +1,13 @@
 #![no_std]
 #![no_main]
 
-use rost_elf::parse_header;
+use rost_elf::{parse_header, validate_load_segments};
 use uefi::boot;
 use uefi::cstr16;
 use uefi::prelude::*;
-use uefi::proto::media::file::{File, FileAttribute, FileMode};
+use uefi::proto::media::file::{File, FileAttribute, FileMode, RegularFile};
 
-// Limit how much of the kernel we read before allocating memory for it.
+// Maximum amount of ELF header data we read before loading the kernel.
 const MAX_HEADER_BYTES: usize = 16 * 1024;
 
 #[entry]
@@ -19,9 +19,9 @@ fn main() -> Status {
     uefi::println!("rOSt bootloader v0.0.1");
     uefi::println!("UEFI initialized successfully.");
 
-    match validate_kernel_header() {
+    match validate_kernel() {
         Ok(()) => {
-            uefi::println!("Kernel ELF64 header validated.");
+            uefi::println!("Kernel ELF64 segments validated.");
             Status::SUCCESS
         }
         Err(status) => {
@@ -31,8 +31,8 @@ fn main() -> Status {
     }
 }
 
-// Locate the kernel and verify its ELF64 header.
-fn validate_kernel_header() -> Result<(), Status> {
+// Locate the kernel and validate its ELF headers and loadable segments.
+fn validate_kernel() -> Result<(), Status> {
     let mut filesystem =
         boot::get_image_file_system(boot::image_handle()).map_err(|error| error.status())?;
 
@@ -48,11 +48,19 @@ fn validate_kernel_header() -> Result<(), Status> {
 
     let mut kernel = file.into_regular_file().ok_or(Status::LOAD_ERROR)?;
 
+    // Get the actual file size, then return to the beginning.
+    kernel
+        .set_position(RegularFile::END_OF_FILE)
+        .map_err(|error| error.status())?;
+
+    let file_size = kernel.get_position().map_err(|error| error.status())?;
+
+    kernel.set_position(0).map_err(|error| error.status())?;
+
     let mut buffer = [0u8; MAX_HEADER_BYTES];
     let mut bytes_read = 0;
 
-    // UEFI may return fewer bytes than requested, so continue until
-    // the buffer is full or the end of the file is reached.
+    // Reads may be partial, so continue until EOF or the buffer is full.
     while bytes_read < buffer.len() {
         let count = kernel
             .read(&mut buffer[bytes_read..])
@@ -65,13 +73,21 @@ fn validate_kernel_header() -> Result<(), Status> {
         bytes_read += count;
     }
 
-    let header = parse_header(&buffer[..bytes_read]).map_err(|error| {
-        uefi::println!("Invalid kernel ELF: {:?}", error);
+    let data = &buffer[..bytes_read];
+
+    let header = parse_header(data).map_err(|error| {
+        uefi::println!("Invalid kernel header: {:?}", error);
+        Status::LOAD_ERROR
+    })?;
+
+    let segments = validate_load_segments(data, file_size).map_err(|error| {
+        uefi::println!("Invalid kernel segments: {:?}", error);
         Status::LOAD_ERROR
     })?;
 
     uefi::println!("Entry point: {:#x}", header.entry);
     uefi::println!("Program headers: {}", header.program_header_count);
+    uefi::println!("Loadable segments: {}", segments.loadable_segments);
 
     Ok(())
 }

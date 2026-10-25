@@ -6,15 +6,13 @@ An experimental modular monolithic operating system written in Rust, focused on 
 
 rOSt is in early development. The project currently consists of a custom UEFI bootloader, a minimal freestanding x86-64 kernel, and an ELF64 validation library, all written in Rust.
 
-The bootloader initializes UEFI services, displays a startup message, locates the kernel executable, and validates its ELF64 header using the shared ELF library.
+The bootloader initializes UEFI services, displays a startup message, locates the kernel executable, and validates its ELF64 headers and loadable segments using the shared ELF library.
 
-The ELF library provides separate header and loadable-segment validation. It checks executable format, architecture, program-header boundaries, segment sizes, file ranges, alignment, and whether the entry point lies within an executable segment.
+The ELF validator checks executable format, architecture, program-header boundaries, segment sizes, file ranges, alignment, and whether the entry point lies within a segment marked executable.
 
-Loadable-segment validation is covered by unit tests but is not yet integrated into the bootloader. Additional checks are required before kernel loading.
+The bootloader and ELF validation functionality have been tested using QEMU with EDK2 firmware.
 
-The bootloader has been tested using QEMU with EDK2 firmware.
-
-The kernel does not execute yet.
+The kernel does not execute yet. Additional validation and memory-loading functionality are required before execution.
 
 ## Building
 
@@ -63,7 +61,7 @@ Copy the compiled kernel to `kernel.elf` at the root of the same volume.
 
 Launch QEMU with x86-64 EDK2 firmware and the volume attached as a virtual disk.
 
-The bootloader currently validates the kernel's ELF64 header but does not load or execute its program segments.
+The bootloader validates the kernel's ELF64 headers and loadable segments but does not load or execute the kernel.
 
 ## License
 

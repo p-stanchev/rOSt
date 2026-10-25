@@ -8,9 +8,11 @@ rOSt is in early development. The project currently consists of a custom UEFI bo
 
 The bootloader initializes UEFI services, displays a startup message, locates the kernel executable, and validates its ELF64 header using the shared ELF library.
 
-The ELF validator checks the executable format, architecture, entry point, and program-header table boundaries. It does not yet validate or load individual program segments.
+The ELF library provides separate header and loadable-segment validation. It checks executable format, architecture, program-header boundaries, segment sizes, file ranges, alignment, and whether the entry point lies within an executable segment.
 
-The bootloader and ELF validation functionality have been tested using QEMU with EDK2 firmware.
+Loadable-segment validation is covered by unit tests but is not yet integrated into the bootloader. Additional checks are required before kernel loading.
+
+The bootloader has been tested using QEMU with EDK2 firmware.
 
 The kernel does not execute yet.
 
@@ -45,7 +47,7 @@ target/x86_64-unknown-none/debug/rost-kernel
 
 ## Testing
 
-Run the ELF validator's unit tests:
+Run the ELF library's unit tests:
 
 ```bash
 cargo test -p rost-elf
@@ -61,7 +63,7 @@ Copy the compiled kernel to `kernel.elf` at the root of the same volume.
 
 Launch QEMU with x86-64 EDK2 firmware and the volume attached as a virtual disk.
 
-The bootloader validates the kernel's ELF64 header but does not load or execute its program segments.
+The bootloader currently validates the kernel's ELF64 header but does not load or execute its program segments.
 
 ## License
 
